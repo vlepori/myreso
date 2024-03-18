@@ -27,6 +27,8 @@ push!(pars, :r_plants => 3.0)
 push!(pars, :r_animals => 0.)
 push!(pars, :ext => false)
 push!(pars, :extmorph => 0)
+push!(pars, :speed_a => 1.0)
+push!(pars, :speed_p => 1.0)
 
 
 get_r(tissue1, pars)

@@ -9,10 +9,10 @@ end
 w_i(m, t::Tissue, p) = w_i(m, t, nstar(t, p), p)
 
 # ??? define methods twice for plants and animals?
-dw_i(m::Animal, t, N, p) = ForwardDiff.gradient(x -> w_i(Animal(x), t, N, p), [m[1]])
+dw_i(m::Animal, t, N, p) = ForwardDiff.gradient(x -> w_i(Animal(x), t, N, p), [m[1]])*p[:speed_a]
 dw_i(m::Animal, t::Tissue, p) = dw_i(m, t, nstar(t, p), p)
 
-dw_i(m::Plant, t, N, p) = ForwardDiff.gradient(x -> w_i(Plant(x), t, N, p), [m[1]])
+dw_i(m::Plant, t, N, p) = ForwardDiff.gradient(x -> w_i(Plant(x), t, N, p), [m[1]])*p[:speed_p]
 dw_i(m::Plant, t::Tissue, p) = dw_i(m, t, nstar(t, p), p)
 
 
