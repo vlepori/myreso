@@ -20,15 +20,16 @@ pa = Population([animal1, animal2, animal3])
 
 tissue1 = Tissue(pp, pa) # Make a Tissue from Populations
 
-pars = Dict{Symbol,Any}()
-push!(pars, :sigma => 1.0)
-push!(pars, :a => 1.0)
-push!(pars, :r_plants => 3.0)
-push!(pars, :r_animals => 0.)
-push!(pars, :ext => false)
-push!(pars, :extmorph => 0)
-push!(pars, :speed_a => 1.0)
-push!(pars, :speed_p => 1.0)
+pars =
+    ParSetMu(
+        sigma=1.0,
+        a=1.0,
+        r_plants=1.0,
+        r_animals=0.,
+        # ext=false,
+        # extmorph = 0,
+        speed_a = 1.,
+        speed_p = 1.)
 
 
 get_r(tissue1, pars)
@@ -49,8 +50,8 @@ pp = Population([plant1, plant2, plant3])
 pa = Population([animal1, animal2, animal3])
 tissue1 = Tissue(pp, pa) # Make a Tissue from Populations
 
-prob_mu = ODEProblem(evol1, tissue1, [0, 40.], deepcopy(pars))
-sol = solve(prob_mu, Tsit5(), callback = extcallback, abstol=1e-14, reltol=1e-12, saveat = 0:1:50, maxiters=1e7)
+prob_mu = ODEProblem(evol1, tissue1, [0, 120.], Sp(deepcopy(pars)))
+sol = solve(prob_mu, Tsit5(), callback = CallbackSet(singularstrategy(),extcallback), abstol=1e-14, reltol=1e-12, saveat = 0:1:5000, maxiters=1e7)
 
 # sol_mu = solve(prob_mu, Tsit5(), callback=CallbackSet(extcallback, singularstrategy(), mubranch_callback), abstol=1e-14, reltol=1e-12, maxiters=1e7)
 # [first.(get_plants(x).nodes) for x in sol.u]

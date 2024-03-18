@@ -9,26 +9,41 @@ end
 w_i(m, t::Tissue, p) = w_i(m, t, nstar(t, p), p)
 
 # ??? define methods twice for plants and animals?
-dw_i(m::Animal, t, N, p) = ForwardDiff.gradient(x -> w_i(Animal(x), t, N, p), [m[1]])*p[:speed_a]
+dw_i(m::Animal, t, N, p) = ForwardDiff.gradient(x -> w_i(Animal(x), t, N, p), [m[1]])*p.speed_a
 dw_i(m::Animal, t::Tissue, p) = dw_i(m, t, nstar(t, p), p)
 
-dw_i(m::Plant, t, N, p) = ForwardDiff.gradient(x -> w_i(Plant(x), t, N, p), [m[1]])*p[:speed_p]
+dw_i(m::Plant, t, N, p) = ForwardDiff.gradient(x -> w_i(Plant(x), t, N, p), [m[1]])*p.speed_p
 dw_i(m::Plant, t::Tissue, p) = dw_i(m, t, nstar(t, p), p)
 
 
+"A struct for ODE simulations. Contains the ecological parameters + simulation parameters."
+mutable struct Sp{T<:AbstractParSet}
+    p::T
+    # feasible::Bool
+    ext::Bool
+    extmorph::Int
+    # singular::Bool
+    # branching::Vector{Int}
+end
+
+# Sp(p::AbstractParSet) = Sp(p, true, Int[], false, Int[])
+Sp(p::AbstractParSet) = Sp(p, false, 0)
+
+
+
 function evol1(du, u, p, t)
-    N = nstar(u, p)
+    N = nstar(u, p.p)
 
     if any(N .< 0.0001)
-        p[:ext] = true
+        p.ext = true
         extidx = findall(x -> x < 0.0001, N)
         length(extidx) > 1 && error("multiple extinctions!")
-        p[:extmorph] = first(extidx)
-        # error("Extinction at $(p[:extmorph]).")
+        p.extmorph = first(extidx)
+        # error("Extinction at $(p.extmorph).")
     end
 
     for (m, dm) in LevelIter(2, u, du)
-        dm.values[:] = dw_i(m, u, N, p)
+        dm.values[:] = dw_i(m, u, N, p.p)
     end
 
 end
@@ -57,20 +72,29 @@ get_cart(t, i::Int)::Tuple{Int64,Int64} = get_cart(t)[i]
 
 # Extinction callbacks
 
-extcondition(u, t, integrator) = integrator.p[:ext] # or make continuous?
+extcondition(u, t, integrator) = integrator.p.ext # or make continuous?
 
 function extaffect!(integrator)
     
-    rmidx = get_cart(integrator.u, integrator.p[:extmorph])
+    rmidx = get_cart(integrator.u, integrator.p.extmorph)
     println("EXTINCTION: $rmidx")
     remove_node!(integrator, rmidx...)
     
-    integrator.p[:extmorph] = 0
-    integrator.p[:ext] = false
+    integrator.p.extmorph = 0
+    integrator.p.ext = false
     # printnice(integrator.u)
 end
 
 extcallback = DiscreteCallback(extcondition, extaffect!)
+
+
+
+function singularstrategy(abstol=1e-7, reltol=1e-5, test=DiffEqCallbacks.allDerivPass)
+    condition = (u, t, integrator) -> test(integrator, abstol, reltol)
+    # affect! = (integrator) -> (integrator.p,ess = true)
+    affect! = (integrator) -> terminate!(integrator)
+    DiscreteCallback(condition, affect!; save_positions=(false, false))
+end
 
 
 # d2w_i(m, t, N, p) = ForwardDiff.hessian(x -> w_i(Morph(x[1], m[2]), t, N, p), [m[1]])

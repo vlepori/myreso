@@ -71,6 +71,18 @@ function Base.show(io::IO, v::Vector{Tissue{Population{T,Float64} where T<:Abstr
     end
 end
 
+abstract type AbstractParSet end
+
+Base.@kwdef struct ParSetMu <: AbstractParSet
+    sigma::Float64
+    a::Float64
+    r_plants::Float64
+    r_animals::Float64
+    # ext::Bool
+    # extmorph::Int
+    speed_a::Float64
+    speed_p::Float64
+end
 
 
 
