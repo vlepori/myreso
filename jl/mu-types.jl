@@ -78,8 +78,10 @@ Base.@kwdef struct ParSetMu <: AbstractParSet
     a::Float64
     r_plants::Float64
     r_animals::Float64
-    # ext::Bool
-    # extmorph::Int
+    a_plants::Float64
+    a_animals::Float64
+    phi_plants::Float64
+    phi_animals::Float64
     speed_a::Float64
     speed_p::Float64
 end

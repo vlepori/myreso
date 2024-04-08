@@ -64,7 +64,7 @@ end
 
 # Get indexes for deleting from linear indices. t is a tissue or integrator.u
 "Return a 2-Tuple"
-get_cart(t)::Vector{Tuple{Int64,Int64}} = vcat([[(j, i) for i in 1:x] for (j, x) in pairs(t.end_idxs)]...)
+get_cart(t)::Vector{Tuple{Int64,Int64}} = vcat([[(j, i) for i in eachindex(p.nodes)] for (j, p) in pairs(t.nodes)]...)
 
 get_cart(t, i::Int)::Tuple{Int64,Int64} = get_cart(t)[i]
 

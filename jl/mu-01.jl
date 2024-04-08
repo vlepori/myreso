@@ -24,10 +24,12 @@ pars =
     ParSetMu(
         sigma=1.0,
         a=1.0,
-        r_plants=1.0,
-        r_animals=0.,
-        # ext=false,
-        # extmorph = 0,
+        r_plants= 1.0,
+        r_animals= 0.0, 
+        a_plants= -1.0,
+        a_animals= -1.0,
+        phi_plants= 0.01,
+        phi_animals= 0.1,
         speed_a = 1.,
         speed_p = 1.)
 
