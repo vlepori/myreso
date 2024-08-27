@@ -4,6 +4,8 @@ get_r(tissue::Tissue, p) = [rf(z1, p) for z1 in level_iter(tissue, 2)]
 get_alpha(tissue::Tissue, p) = [alpha(z1, z2, p) for z1 in level_iter(tissue, 2), z2 in level_iter(tissue, 2)]
 
 get_gamma(t::Tissue, p) = [alpha(z1, z2, p) for z1 in level_iter(t.nodes[1], 1), z2 in level_iter(t.nodes[2], 1)]
+get_comp_plants(t::Tissue, p) = [alpha(z1, z2, p) for z1 in level_iter(t.nodes[1], 1), z2 in level_iter(t.nodes[1], 1)]
+get_comp_animals(t::Tissue, p) = [alpha(z1, z2, p) for z1 in level_iter(t.nodes[2], 1), z2 in level_iter(t.nodes[2], 1)]
 # mean_gamma(tissue, p) = StatsBase.mean(get_gamma(tissue, p))
 
 # Watch out for sign convention of alpha matrix !
@@ -32,6 +34,12 @@ end
 function binarize(network)
     Int.(network .!= 0)
 end
+
+function bin(network::Matrix{Float64}, seuil::Float64)::Matrix{Int}
+    network .> seuil
+end
+
+bin(network::Matrix{Float64}, p::AbstractParSet) = bin(network, 0.5 * p.phi_plants)
 
 "count shared interactions in binary arrays"
 function match_hits(A::Array{Int}, B::Array{Int})
@@ -94,6 +102,12 @@ function bp_wnodf(m::Matrix{Float64})
     convert(Float64,out)
 end
 
+
+function bp_nodf(m::Matrix{Int64})
+    out = R"nested($m, method = 'NODF2')"
+    convert(Float64, out)
+end
+
 function bp_wine(m::Matrix{Float64})
     out = R"wine($m)[['win']]"
     convert(Float64, out)
@@ -104,16 +118,36 @@ function bp_modularity(m::Matrix{Float64})
     convert(Float64, out)
 end
 
-function omega_l1(alpha::Matrix{Float64})
-    out=R"(Omega_L1($alpha))"
-    convert(Float64, out)
+# function omega_R(alpha::Matrix{Float64})
+#     out = R"(log_Omega_fn($alpha))"
+#     convert(Float64, out)
+# end
+
+function structural_angles(alpha::Matrix{Float64},r::Vector{Float64})
+    try
+        out = R"(eta_fn($alpha,$r))$eta"
+        return convert(Vector{Float64}, out)
+    catch e
+        return [missing]
+    end
 end
+
+function omega_R(alpha::Matrix{Float64})
+    try
+        out = R"(log_Omega_fn($alpha))"
+        return convert(Float64, out)
+    catch e
+        return [missing]
+    end
+end
+
 
 # function eta(r::Vector{Float64}, alpha::Matrix{Float64})
 #     out = R"(angle_to_border($r, $alpha))"
 #     convert(Float64, out)
 # end
 
+"Only for competitive interactions!"
 function OmegaL1(alpha::Array)
     size(alpha)[1] == 1 && return missing
     alpha_n = alpha * diagm(vec(1 ./ sum(alpha, dims=1)))
@@ -172,9 +206,80 @@ end
 
 second(x) = x[2]
 
+"Sample uniformly `n` times from an arbitrary range"
+runif(n::Int, range::Array) = range[1] .+ rand(n) .* (range[2] - range[1])
+runif(range::Array) = first(runif(1,range))
 
 
+
+is_feasible(t::Tissue, p)::Bool = prod(nstar(t, p) .> 0)
+is_safe_feasible(t::Tissue, p)::Bool = try is_feasible(t, p) catch e false  end
+
+
+function save_RDS(obj::DataFrame, path::String)
+    RCall.reval("library(dplyr)")
+    rdf = RCall.robject(obj) # necessary?
+    RCall.@rput rdf
+    RCall.reval("rdf=as_tibble(rdf)")
+    RCall.reval("saveRDS(rdf, file = '$path')")
+end
 
 # gamma(x, y, p)::Union{Real,Missing} = missing
 # gamma(x::Plant, y::Animal, p)::Real = alpha(x, y, p)
 # get_gamma(tissue::Tissue, p) = [gamma(z1, z2, p) for z1 in level_iter(tissue, 2), z2 in level_iter(tissue, 2)]
+
+
+function save_sol(t::Tissue, p::AbstractParSet, time::Float64, extinctions::Int, path::String)
+    df =
+        DataFrame(
+            "time" => time,
+            "final" => (time == 0.0 ? 0 : 1),
+            "plants" => [get_plants(t)],
+            "animals" => [get_animals(t)],
+            "rs" => [get_r(t, p)],
+            "gamma" => [get_gamma(t, p)],
+            "alpha" => [get_alpha(t, p)],
+            "mutualism" => StatsBase.mean(get_gamma(t, p)),
+            "competition_plants" => StatsBase.mean(get_comp_plants(t, p)),
+            "competition_animals" => StatsBase.mean(get_comp_animals(t, p)),
+            # "d_gamma" => [bin(get_gamma(t, p), p)],
+            # "d_gamma" => [bin(get_gamma(t, p), 0.0001)],
+            # "omega" => omega_R(get_alpha(t, p)),
+            # "nestedness" => bp_nodf(bin(get_gamma(t, p), p)),
+            # "nestedness" => bp_nodf(bin(get_gamma(t, p), 0.0001)),
+            # "modularity" => bp_modularity(get_gamma(t, p)),
+            # "angles" => [structural_angles(get_alpha(t, p), get_r(t,p))],
+            "extinctions" => extinctions,
+            "path" => path
+        )
+    save_RDS(df, path)
+end
+
+richness(t::Tissue) = sum([length(t.nodes[i].nodes) for i in 1:2])
+
+"Write an object to a textfile (log parameters)"
+function logmsg(obj, path::String)
+    open(path, "w") do f
+        print(f, obj)
+    end
+end
+
+"Weighted geometric mean for two numbers"
+wgmean(x1, x2, w1, w2) = (x1^w1 * x2^w2)^(1 / (w1 + w2))
+
+"Weighted geometric mean for arbitrary vector"
+wgmean(x::Vector, w::Vector) = exp(sum(w .* log.(x)) / sum(w))
+
+
+"Sort a Tissue"
+function sort_x1(t::Tissue)
+    ranksp = sortperm(first.(get_nodes(get_plants(t))))
+    ranksa = sortperm(first.(get_nodes(get_animals(t))))
+    Tissue(Population(get_nodes(get_plants(t))[ranksp]),Population(get_nodes(get_animals(t))[ranksa]))
+end
+
+function sort_x2(t::Tissue)
+    ranksp = sortperm(second.(get_nodes(get_plants(t))))
+    ranksa = sortperm(second.(get_nodes(get_animals(t))))
+    Tissue(Population(get_nodes(get_plants(t))[ranksp]), Population(get_nodes(get_animals(t))[ranksa]))
+end
